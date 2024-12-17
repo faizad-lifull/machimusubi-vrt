@@ -3,7 +3,7 @@ export function getHomesOrigin(stage: string): string {
     case stage === 'test': {
       return 'https://www-test.develop.homes.co.jp';
     }
-    case stage === 'pool': {
+    case stage === 'targets': {
       return 'https://www-pool.homes.co.jp';
     }
     case stage === 'live': {
