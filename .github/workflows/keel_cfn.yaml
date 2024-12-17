@@ -1,0 +1,169 @@
+name: Detect CFn updates
+on:
+  merge_group:
+    types: [checks_requested]
+  pull_request:
+    branches:
+      - develop
+      - master
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+      - ready_for_review
+env:
+  # use embedded GITHUB_TOKEN https://docs.github.com/ja/actions/reference/authentication-in-a-workflow#
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+jobs:
+  cfn:
+    timeout-minutes: 10
+    runs-on: [self-hosted, organization]
+    if: github.event.pull_request.state == 'open'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+        if: contains(github.event.pull_request.labels.*.name, 'ActionRequired:CFn') != true
+      # `on.pull_request.paths` does not hook file creation
+      - run: |
+          if git diff origin/${{ github.event.pull_request.base.ref }} HEAD --name-only --diff-filter=d | grep -E '^bin/create-cfn-stack.sh|template.yaml$'; then
+            echo "continue=1" >> $GITHUB_OUTPUT
+          else
+            echo "continue=0" >> $GITHUB_OUTPUT
+          fi
+        id: check
+        if: contains(github.event.pull_request.labels.*.name, 'ActionRequired:CFn') != true
+      - run: |
+          curl -sSL -X POST -H "Authorization: token ${GITHUB_TOKEN}" -d "{\"labels\":[\"ActionRequired:CFn\"]}" ${{ github.event.pull_request.issue_url }}/labels
+        if: steps.check.outputs.continue == '1' && contains(github.event.pull_request.labels.*.name, 'ActionRequired:CFn') != true
+      - run: |
+          summary="[KEEL] CloudFormation Stack作成依頼(${{ github.event.pull_request.base.repo.name }})"
+          operation=$(cat <<EOS
+          対象PullRequest:
+          ${{ github.event.pull_request.html_url }}
+
+          1900年1月1日0時頃 にリリース予定のPullRequestについての事前のCloudFormation Stack作成依頼になります。
+          実際の作業内容は直前の案内となってしまいますが、作業手順は自動生成されていて既に実績のあるものです。
+          作業手順が確定次第、以下に追加で記載いたします。
+
+          ---
+          EOS
+          )
+
+          body=$(cat <<EOS
+          CloudFormation Templateにまつわる内容が修正されました。
+          \`bin/create-cfn-stack.sh\` の修正内容にパラメータのデフォルト値の変更が含まれている場合、CloudFormation Stackのパラメータを変更する必要があるかもしれません。
+          **IAMをはじめとする重大なリソースの変更を伴う場合は https://jira.next-group.jp/wiki/display/kibangroup/0103_IAM に基づいて所属長によるPull Requestの承認が必要なことに注意してください。**
+          基盤Gの承認は自動実行の中で自動的に行われるため、所属長によるPull Requestの承認のみお願いします。
+
+          この修正を含めてリリースをするとCloudFormation Stackのデプロイが自動実行されます。
+          CloudFormation Stackにパラメータが新規に追加されたりパラメータを変更したい場合は、[\`create-cfn-stack-env.sh\` の生成](${{ github.event.repository.html_url }}/blob/HEAD/keel.md#create-cfn-stack-envsh-の生成)をしてパラメータを配置してください。
+          その間一時的にビルドパイプラインが中断され、CloudFormation Stackのデプロイが完了した後に再開されます。
+
+          そのため、緊急を要する変更の場合はCloudFormation Templateの変更を含めないようにするか、[CloudFormation Stackのデプロイ自動実行のスキップ](${{ github.event.repository.html_url }}/blob/HEAD/keel.md#CloudFormation-Stackのデプロイ自動実行のスキップ)をしてください。
+
+          CloudFormation Stackのデプロイ待ちの状態から自動実行をスキップしたい場合は[CloudFormation Stackのデプロイ自動実行のスキップ](${{ github.event.repository.html_url }}/blob/HEAD/keel.md#CloudFormation-Stackのデプロイ自動実行のスキップ)をした後に[アプリケーションを手動リリースする](${{ github.event.repository.html_url }}/blob/HEAD/keel.md#アプリケーションを手動リリースする)を実施してください。
+          現在の待ちの状態は[ビルドパイプライン](${{ github.event.repository.html_url }}/blob/HEAD/keel.md#ビルドパイプライン)で最新のBuildの実行結果が \`Status: Stopped\` でFailedしているかどうかから確認することができます。
+          デプロイまでが遅かったり、緊急で対応したいが権限がないなど、この件に関するお問い合わせは[連絡先](https://github.com/lifull/V1ClusterBootstrap#連絡先)より承ります。
+
+          リリース後にビルドの失敗通知が届いた場合は、CloudFormation Templateが不正か[\`create-cfn-stack-env.sh\` の生成](${{ github.event.repository.html_url }}/blob/HEAD/keel.md#create-cfn-stack-envsh-の生成)を忘れている可能性があります。
+          修正して再リリースをするか、必要なファイルを配置してから[アプリケーションを手動リリースする](${{ github.event.repository.html_url }}/blob/HEAD/keel.md#アプリケーションを手動リリースする)を実施してください。
+
+          [CloudFormation Stackのデプロイ自動実行のスキップ](${{ github.event.repository.html_url }}/blob/HEAD/keel.md#CloudFormation-Stackのデプロイ自動実行のスキップ)状態のまま自動実行を利用しない・あるいはCloudFormation Stackの初回構築が済んでいなかったりkeelctlのバージョンアップ時などで自動実行が適用前の場合は、以下の手順に従って手動でのデプロイをこのPullRequestの **Merge直前** に実施してください。
+          <details>
+            <summary>CloudFormation Stackの手動デプロイ手順</summary>
+            修正を確認して直ちにデプロイする必要がないと自身で判断できる場合には自己責任で実施を後回しにすることができます。
+
+            1. 最新のdevelopにrebaseする
+              - rebaseは、developに対してtemplate.yamlを修正するPullRequestが同時に複数存在している場合に他のPullRequestのCloudFormation Stackへの変更を意図せず上書きしてしまうことを防ぐために必要です
+            2. [CloudFormation Stackのデプロイ](${{ github.event.repository.html_url }}/blob/HEAD/keel.md#CloudFormation-Stackのデプロイ)を実行する
+
+            この変更をdevelop, masterでデプロイする際には基盤Gに作業依頼が必要となることに注意してください。
+            具体的な作業依頼内容はそれらのブランチへのPullRequestが作成された際にGitHub Actionsより指示されます。
+            そのため、事前に[基盤G作業依頼](https://jira.next-group.jp/secure/CreateIssueDetails!init.jspa?pid=11807&issuetype=15011&customfield_14530=13636&customfield_14505=13632&customfield_14529=13671&customfield_14532=CloudFormation&summary=$(echo "$summary" | node -e "console.log(encodeURIComponent(require('fs').readFileSync('/dev/stdin', 'utf8')))")&customfield_14102=$(echo "$operation" | node -e "console.log(encodeURIComponent(require('fs').readFileSync('/dev/stdin', 'utf8')))"))からチケットを作成してスケジュール調整だけ済ませておいてください。
+            リリース予定日時のみ修正してチケットを作成し、それらのブランチへのPullRequestが作成された後にチケットを修正して作業内容を共有するとよいです。
+            なお、同じリポジトリから作業依頼が重複しないよう注意してください。
+
+            CloudFormation Stackの初回構築の場合は作業依頼の完了を待たずにPullRequestをMergeすることができます。
+            Mergeより先にCloudFormation Stackが構築されるとビルドが失敗しますが、改めてPullRequestをMergeすると成功します。
+          </details>
+          EOS
+          )
+          data=$(jq -n --arg body "${body}" '{$body}')
+          curl -sSL -X POST -H "Authorization: token ${GITHUB_TOKEN}" -d "$data" ${{ github.event.pull_request.comments_url }}
+        if: steps.check.outputs.continue == '1' && contains(github.event.pull_request.labels.*.name, 'ActionRequired:CFn') != true && (github.event.pull_request.base.ref == 'develop')
+      - run: |
+          summary="[KEEL] CloudFormation Stack作成依頼(${{ github.event.pull_request.base.repo.name }})"
+          operation=$(cat <<EOS
+          リリース用PullRequest: ${{ github.event.pull_request.html_url }}
+
+          コメントにて上長の承認が確認できた後、基盤GではIAMの変更内容のみをご確認いただき、以下のコマンドの実行をお願いします。
+          起票者からファイルのURLが共有されなかった場合は3, 4の手順を実施する必要はありません。
+          ただしその場合は \`Enter ENVIRONMENT:\` で入力を促されるため、起票者から伝えられた環境名を入力してください。
+          1. \`t=\$(mktemp -d)\`
+          2. \`git clone ${{ github.event.pull_request.head.repo.ssh_url }} \$t/repository\`
+          3. \`aws s3 cp <起票者から共有されたファイルのURL> \$t/create-cfn-stack-env.sh\`
+            - 共有されたファイルを消し忘れて古いものと混同することを防ぐため一時ディレクトリに移しています
+          4. \`source \$t/create-cfn-stack-env.sh\`
+          5. \`cd \$t/repository\`
+          6. \`git fetch origin pull/${{ github.event.pull_request.number }}/head:pull/${{ github.event.pull_request.number }}\`
+          7. \`git checkout pull/${{ github.event.pull_request.number }}\`
+          8. \`export AWS_PROFILE=<CloudFormationへのWrite権限を持ったprofile>\`
+          9. \`bash bin/create-cfn-stack.sh --no-save\`
+            - \`Would you like to restore the parameters you last entered?\` と出た場合は過去のファイルが残っているため \`N\` と入力してください
+            - \`Please update bash version for using read -i\` というメッセージが出たらbashのバージョンを上げてください
+          10. \`rm -r \$t\`
+          EOS
+          )
+
+          body=$(cat <<EOS
+          CloudFormation Templateにまつわる内容が修正されました。
+          \`bin/create-cfn-stack.sh\` の修正内容にパラメータのデフォルト値の変更が含まれている場合、CloudFormation Stackのパラメータを変更する必要があるかもしれません。
+          **IAMをはじめとする重大なリソースの変更を伴う場合は https://jira.next-group.jp/wiki/display/kibangroup/0103_IAM に基づいて所属長によるPull Requestの承認が必要なことに注意してください。**
+          基盤Gの承認は自動実行の中で自動的に行われるため、所属長によるPull Requestの承認のみお願いします。
+
+          この修正を含めてリリースをするとCloudFormation Stackのデプロイが自動実行されます。
+          CloudFormation Stackにパラメータが新規に追加されたりパラメータを変更したい場合は、[\`create-cfn-stack-env.sh\` の生成](${{ github.event.repository.html_url }}/blob/HEAD/keel.md#create-cfn-stack-envsh-の生成)をしてパラメータを配置してください。
+          その間一時的にビルドパイプラインが中断され、CloudFormation Stackのデプロイが完了した後に再開されます。
+
+          なお、homes-prodでのCloudFormation Stackのデプロイでは自動実行のプロセスの中で承認が挟まるため、**多少のリードタイムが見込まれます**。(2022年12月現在 基盤Gによる承認リードタイム 最大2日)
+          何か問題があれば通知が来るようになっているため、通知が来るあるいはビルドパイプラインが再開するまではただ待っていてください。
+          リードタイムは基盤Gの努力によって短縮されていく見込みです。
+
+          そのため、緊急を要する変更の場合はCloudFormation Templateの変更を含めないようにするか、[CloudFormation Stackのデプロイ自動実行のスキップ](${{ github.event.repository.html_url }}/blob/HEAD/keel.md#CloudFormation-Stackのデプロイ自動実行のスキップ)をしてください。
+
+          CloudFormation Stackのデプロイ待ちの状態から自動実行をスキップしたい場合は[CloudFormation Stackのデプロイ自動実行のスキップ](${{ github.event.repository.html_url }}/blob/HEAD/keel.md#CloudFormation-Stackのデプロイ自動実行のスキップ)をした後に[アプリケーションを手動リリースする](${{ github.event.repository.html_url }}/blob/HEAD/keel.md#アプリケーションを手動リリースする)を実施してください。
+          現在の待ちの状態は[ビルドパイプライン](${{ github.event.repository.html_url }}/blob/HEAD/keel.md#ビルドパイプライン)で最新のBuildの実行結果が \`Status: Stopped\` でFailedしているかどうかから確認することができます。
+          デプロイまでが遅かったり、緊急で対応したいが権限がないなど、この件に関するお問い合わせは[連絡先](https://github.com/lifull/V1ClusterBootstrap#連絡先)より承ります。
+
+          リリース後にビルドの失敗通知が届いた場合は、CloudFormation Templateが不正か[\`create-cfn-stack-env.sh\` の生成](${{ github.event.repository.html_url }}/blob/HEAD/keel.md#create-cfn-stack-envsh-の生成)を忘れている可能性があります。
+
+          [CloudFormation Stackのデプロイ自動実行のスキップ](${{ github.event.repository.html_url }}/blob/HEAD/keel.md#CloudFormation-Stackのデプロイ自動実行のスキップ)状態のまま自動実行を利用しない・あるいはCloudFormation Stackの初回構築が済んでいなかったりkeelctlのバージョンアップ時などで自動実行が適用前の場合は、以下の手順に従って手動でのデプロイをこのPullRequestの **Merge直前** に実施してください。
+          <details>
+            <summary>CloudFormation Stackの手動デプロイ手順</summary>
+            修正を確認して直ちにデプロイする必要がないと判断できる場合には実施を後回しにすることができます。
+
+            1. **基盤Gに作業を依頼するAWSアカウントで** 自身で \`bash bin/create-cfn-stack.sh\` を叩く
+              - \`Would you like to restore the parameters you last entered?\` と出た場合は過去のパラメータが記憶されているため \`N\` と入力する
+            2. 最後に聞かれる \`Would you like to deploy CloudFormation Stack to \${accountId} as \${STACK_NAME}?\` で \`N\` を入力する
+            3. \`\$XDG_CONFIG_HOME/\$YOUR_REPOSITORY_NAME/\$ENVIRONMENT/create-cfn-stack-env.sh\` に必要なパラメータが出力されていることを確認する
+              - パラメータに変更がなくパラメータを要求されなかった場合は、**基盤Gにパラメータを共有する必要はなく** \`Enter ENVIRONMENT:\` で入力した環境名のみ伝えてください
+              - パラメータを要求されなかった場合は \`\$XDG_CONFIG_HOME/\$YOUR_REPOSITORY_NAME/\$ENVIRONMENT/create-cfn-stack-env.sh\` が存在しないか、過去のパラメータが記憶されていた場合はこのファイルが変更されていません
+                - \`stat -c %y \$XDG_CONFIG_HOME/\$YOUR_REPOSITORY_NAME/\$ENVIRONMENT/create-cfn-stack-env.sh\` でファイルの変更時刻を調べて、このファイルが変更されたかどうかを確認することができます
+                - \`\$XDG_CONFIG_HOME\` はデフォルトで \`~/.config\` になっているため、\`~/.config/keel-application-template-integration/production/create-cfn-stack-env.sh\` のようなパスで出力されています
+            4. そのファイルをS3経由で基盤Gの担当者に共有する
+              - 以下のコマンドを実行して共有用S3バケットへのアップロードを行います **(\`<path/to/create-cfn-stack-env.sh>\`は、手順3で確認したパラメータファイルのパスで置き換えてください)**
+                - \`\`b=\$(aws cloudformation list-exports --query 'Exports[?Name==\`InfrastructureHubTokyoSetupStack:SecretSharingBucketName\`].Value' --output text); u=\$(aws sts get-caller-identity --query 'UserId' --output text); aws s3 cp <path/to/create-cfn-stack-env.sh> s3://\$b/users/\$u/ && echo S3 URL: s3://\$b/users/\$u/create-cfn-stack-env.sh\`\`
+            5. [基盤G作業依頼](https://jira.next-group.jp/secure/CreateIssueDetails!init.jspa?pid=11807&issuetype=15011&customfield_14530=13636&customfield_14505=13632&customfield_14529=13671&customfield_14532=CloudFormation&summary=$(echo "$summary" | node -e "console.log(encodeURIComponent(require('fs').readFileSync('/dev/stdin', 'utf8')))")&customfield_14102=$(echo "$operation" | node -e "console.log(encodeURIComponent(require('fs').readFileSync('/dev/stdin', 'utf8')))"))からチケットを作成する
+              - 共有するパラメータファイルがある場合は、手順4のコマンド実行時に出力されたS3 URLを共有してください
+              - 共有するファイルが無い場合は、必ず「今回は \`create-cfn-stack-env.sh\` の共有はありません」とその旨をチケットに記載した上で、デプロイを依頼する環境名を共有してください
+            6. チケット内で自身の上長からの承認をもらう
+              - 上長は変更内容に問題がないかを確認した上で承認をお願いします
+            7. CloudFormationのデプロイ成功の確認をもって基盤Gの作業確認を完了とする
+          </details>
+          EOS
+          )
+          data=$(jq -n --arg body "${body}" '{$body}')
+          curl -sSL -X POST -H "Authorization: token ${GITHUB_TOKEN}" -d "$data" ${{ github.event.pull_request.comments_url }}
+        if: steps.check.outputs.continue == '1' && contains(github.event.pull_request.labels.*.name, 'ActionRequired:CFn') != true && (github.event.pull_request.base.ref == 'develop' || github.event.pull_request.base.ref == 'master')

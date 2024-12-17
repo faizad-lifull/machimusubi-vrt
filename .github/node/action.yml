@@ -1,0 +1,13 @@
+name: Setup Node Application
+runs:
+  using: composite
+  steps:
+    - name: Setup node.js
+      uses: lifull-growth/setup-node@v1a
+      with:
+        cache: 'npm'
+        node-version: '20.15.1'
+
+    - name: Install Dependencies
+      shell: bash
+      run: npm ci --ignore-scripts

@@ -1,0 +1,100 @@
+name: keelctl gen
+on:
+  merge_group:
+    types: [checks_requested]
+  pull_request:
+    branches:
+      - develop
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+      - ready_for_review
+      - closed
+env:
+  # use embedded GITHUB_TOKEN https://docs.github.com/ja/actions/reference/authentication-in-a-workflow#
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+jobs:
+  notify:
+    timeout-minutes: 10
+    runs-on: [self-hosted, organization]
+    if: github.event.pull_request.state == 'open'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          if git diff origin/${{ github.event.pull_request.base.ref }} HEAD --name-only --diff-filter=d | grep -E '^keel_configuration.yaml|.keelctl_version|keel_configuration/.*\.yaml$'; then
+            echo "continue=1" >> $GITHUB_OUTPUT
+          else
+            echo "continue=0" >> $GITHUB_OUTPUT
+          fi
+        id: check
+        if: contains(github.event.pull_request.labels.*.name, 'ActionRequired:keelctl-gen') != true
+      - run: |
+          curl -sSL -X POST -H "Authorization: token ${GITHUB_TOKEN}" -d "{\"labels\":[\"ActionRequired:keelctl-gen\"]}" ${{ github.event.pull_request.issue_url }}/labels
+        if: steps.check.outputs.continue == '1' && contains(github.event.pull_request.labels.*.name, 'ActionRequired:keelctl-gen') != true
+      - run: |
+          body=$(cat <<EOS
+          keelctl関連ファイルが修正されました。
+          **必ず** \`keelctl gen\` を実行してください。
+          このPullRequestのMerge後に \`--no-push\` をつけずにkeelctlを自動実行してPullRequestの送信を行うため、レビュー完了後に \`--no-push\` をつけて再実行する必要はありません。
+
+          自動実行をスキップする場合は \`ActionRequired:keelctl-gen\` ラベルをこのPullRequestのMerge前に外してください。
+          EOS
+          )
+
+          if git diff origin/${{ github.event.pull_request.base.ref }} HEAD --name-only --diff-filter=D | grep -E '^manifests/'; then
+            body=$(cat <<EOS
+            $body
+
+            **注意**:
+            このPullRequestで \`manifests/*\` 以下のファイルが削除されています。
+            [注意点](https://github.com/${{ github.repository }}/blob/HEAD/keel.md#%E6%B3%A8%E6%84%8F%E7%82%B9)を読んで、削除に伴う対応が必要かどうか確認してください。
+          EOS
+          )
+          fi
+          curl -sSL -X POST -H "Authorization: token ${GITHUB_TOKEN}" -d "$(jq -n --arg body "$body" '{$body}')" ${{ github.event.pull_request.comments_url }}
+        if: steps.check.outputs.continue == '1' && contains(github.event.pull_request.labels.*.name, 'ActionRequired:keelctl-gen') != true
+  gen:
+    timeout-minutes: 10
+    runs-on: [self-hosted, organization]
+    if: github.event.pull_request.merged == true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          if git diff -m HEAD~ --name-only --diff-filter=d | grep -E '^keel_configuration.yaml|.keelctl_version|keel_configuration/.*\.yaml$'; then
+            echo "continue=1" >> $GITHUB_OUTPUT
+          else
+            echo "continue=0" >> $GITHUB_OUTPUT
+          fi
+        id: check
+        if: contains(github.event.pull_request.labels.*.name, 'ActionRequired:keelctl-gen') == true
+      - id: generate_keelctl_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.KEEL_AUTOMATION_LIFULL_GHAPP_ID }}
+          private-key: ${{ secrets.KEEL_AUTOMATION_LIFULL_GHAPP_PRIVATE_KEY }}
+          owner: lifull
+          repositories: keelctl,v1clusterbootstrap
+        if: steps.check.outputs.continue == '1' && contains(github.event.pull_request.labels.*.name, 'ActionRequired:keelctl-gen') == true
+      - id: keelctl_gen
+        run: |
+          git config --global user.email "keel@lifull.com"
+          git config --global user.name "keel"
+          git config --global --add pull.ff only
+
+          version="latest"
+          [ -e .keelctl_version ] && version="tags/v$(cat .keelctl_version)"
+
+          mkdir -p /opt/actions-runner/_work/_temp/keelctl/bin
+          keelctl_asset_id=$(curl -s -H "Authorization: Bearer ${{ steps.generate_keelctl_token.outputs.token }}" https://api.github.com/repos/lifull/keelctl/releases/${version} | jq '.assets[] | select(.name | startswith("keelctl") and contains("linux_amd64")) | .url' | xargs basename)
+          wget --auth-no-challenge --header="Accept:application/octet-stream" -O /opt/actions-runner/_work/_temp/keelctl/bin/keelctl https://x-access-token:${{ steps.generate_keelctl_token.outputs.token }}@api.github.com/repos/lifull/keelctl/releases/assets/$keelctl_asset_id
+          chmod +x /opt/actions-runner/_work/_temp/keelctl/bin/keelctl
+          export PATH=$PATH:/opt/actions-runner/_work/_temp/keelctl/bin
+
+          GITHUB_TOKEN="${{ steps.generate_keelctl_token.outputs.token }}" bin/keelctl gen keel_configuration.yaml . --yes
+        if: steps.check.outputs.continue == '1' && contains(github.event.pull_request.labels.*.name, 'ActionRequired:keelctl-gen') == true

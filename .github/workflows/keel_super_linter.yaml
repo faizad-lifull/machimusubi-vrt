@@ -1,0 +1,52 @@
+name: Lint Code Base
+on:
+  pull_request:
+    branches:
+      - develop
+      - release
+      - master
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  ACTION_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+jobs:
+  super-linter:
+    name: super-linter
+    runs-on: ubuntu-20.04
+    if: false # Determined at keelctl execution
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Lint Code Base
+        uses: github/super-linter/slim@v4.8.5
+        env:
+          LOG_LEVEL: ERROR
+          MULTI_STATUS: false
+          DEFAULT_BRANCH: ${{ github.base_ref }}
+          LINTER_RULES_PATH: "."
+          VALIDATE_JAVASCRIPT_ES: true
+          JAVASCRIPT_ES_CONFIG_FILE: ".eslintrc.json"
+        id: linter
+      - name: Failure Message
+        run: |
+          body=$(cat <<EOS
+          LIFULLのコーディングルールに違反しています。\n\
+          [こちら](${ACTION_URL})から指摘内容を確認して指摘箇所を修正するか、指摘に納得感がない場合は[keelctl内のLIFULLのコーディングルール](https://github.com/lifull/keelctl/tree/master/pkg/keelctl/gen/generator/linter/template)に対してPRを出してください。\n\
+          またkeelctlのルール変更の反映前にブランチをマージしたい場合は、一時的に手元のルールファイル変更して対応することも可能です。\n\
+          (ただし最終的にkeelctlの状態と一致させてください。)\n\
+          \n\
+          **Lintが失敗していることを常態化させないために、必ず上記の対応をするか、対応できない場合は[.keelctlignore](https://github.com/lifull/keelctl#keelctlignore)による無効化を検討してください。**\n\
+          Lintルールファイルの上書きや、\`if: false # Determined at keelctl execution\` に設定した [keel_super_linter.yaml](.github/workflows/keel_super_linter.yaml) の上書きを無効にしたりすることができます。\n\
+          \n\
+          現在、Super-Lineterは実験的な導入のため多くの失敗が予想されます。\n\
+          ご意見ご質問などあれば [#sys-keel-for-developers](https://lifull.slack.com/archives/C02HSMAJCSG) にて \`@ug-qeg\` までよろしくお願いします。\n
+          EOS
+          )
+          curl -sSL -X POST -H "Authorization: token ${GITHUB_TOKEN}" -d "{\"body\":\"${body}\"}" ${{ github.event.pull_request.comments_url }}
+        if: failure()

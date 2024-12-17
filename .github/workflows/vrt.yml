@@ -1,0 +1,126 @@
+name: Visual Regression Test
+on:
+  issue_comment:
+    types: 
+      - created
+jobs:
+  vrt:
+    # ラベル「VisualRegression」と EE 生成完了の PR comment を参照する
+    if: |
+      github.event.issue.pull_request != null &&
+      contains(github.event.issue.labels.*.name, 'VisualRegression') &&
+      startsWith(github.event.comment.body, 'このPull Requestは')
+    runs-on: [self-hosted, organization]
+    steps:
+      # PR Number の設定
+      - name: Get Pull Request number
+        id: get_pr
+        run: echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+
+      - name: Install libnss3
+        run: |
+          apt update && apt-get install -y \
+          libnss3 \
+          libatk1.0-0 \
+          libatk-bridge2.0-0 \
+          libcups2 \
+          ca-certificates \
+          fonts-liberation \
+          libasound2 \
+          libc6 \
+          libcairo2 \
+          libdbus-1-3 \
+          libexpat1 \
+          libfontconfig1 \
+          libgbm1 \
+          libgcc1 \
+          libglib2.0-0 \
+          libgtk-3-0 \
+          libnspr4 \
+          libpango-1.0-0 \
+          libpangocairo-1.0-0 \
+          libstdc++6 \
+          libx11-6 \
+          libx11-xcb1 \
+          libxcb1 \
+          libxcomposite1 \
+          libxcursor1 \
+          libxdamage1 \
+          libxext6 \
+          libxfixes3 \
+          libxi6 \
+          libxrandr2 \
+          libxrender1 \
+          libxss1 \
+          libxtst6 \
+          lsb-release \
+          wget \
+          xdg-utils
+
+      # Set up Node.js
+      - name: Set up Node.js
+        uses: ./.github/actions/setup/node
+      
+      - name: Install dependencies
+        run: |
+          cd tests
+          npm install
+
+      # 現在のスナップショットを収集
+      - name: Collect snapshots
+        run: |
+          cd tests
+          STAGE=pr:${{ steps.get_pr.outputs.pr_number }} npm run vrt:collect
+
+      # テスト実行して html を出力
+      - name: Visual Regression Test
+        id: vrt
+        run: |
+          cd tests
+          npm run vrt:diff
+        continue-on-error: true
+
+      # 結果を Artifact にアップロードする。データは3日間保持される
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-${{ steps.get_pr.outputs.pr_number }}
+          path: ./tests/src/vrt
+          retention-days: 3
+
+      # 保存した Artifact を GitHub Pages へデプロイする
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: pr-${{ steps.get_pr.outputs.pr_number }}
+          path: ./tests/src/vrt
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./tests/src/vrt
+          publish_branch: gh-pages
+          destination_dir: pr-${{ steps.get_pr.outputs.pr_number }}
+
+      # VRTが成功した場合、画像を削除する
+      - name: Clean up screenshots on success
+        if: steps.vrt.outcome == 'success'
+        run: |
+          rm -rf src/vrt/screenshots/outputs/*
+
+      # 該当の PR にコメントする
+      - name: Post comment
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const prNumber = ${{ steps.get_pr.outputs.pr_number }};
+            const body = `🎨 Visual Regression Test completed.
+            Please check the following URL: https://silver-dollop-6k41loq.pages.github.io/pr-${{ steps.get_pr.outputs.pr_number }}/screenshot/targets/`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: body
+            });

@@ -1,0 +1,35 @@
+# このファイルは初回のみkeelctlによって生成されるため編集が可能です
+
+### <!-- merge safe
+":pencil: docs":
+- "**/*.md"
+
+":construction: rule:develop":
+- CODEOWNERS
+
+":construction: rule:ci":
+- .github/*.yml
+- .github/workflows/**/*
+
+":construction: rule:coding":
+- .yamllint.yml
+- .eslintrc.json
+
+":whale: app:container":
+- .dockerignore
+- Dockerfile
+
+":rocket: keel":
+- bin/create-cfn-stack.sh
+- bin/init.sh
+- bin/keelctl
+- bin/repository-settings.sh
+- bin/runbook-translator
+- manifests/**/*
+- policy/**/*
+- .keelctl_version
+- .keelctlignore
+- keel.md
+- keel_configuration.yaml
+- template.yaml
+### merge safe -->

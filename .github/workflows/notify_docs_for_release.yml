@@ -1,0 +1,37 @@
+name: Announce Release Documents before Merge to develop
+on:
+  pull_request_review:
+    types:
+      - submitted
+env:
+  # use embedded GITHUB_TOKEN https://docs.github.com/ja/actions/reference/authentication-in-a-workflow#
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+jobs:
+  announce_release_documents:
+    name: announce release documents
+    timeout-minutes: 10
+    runs-on: [self-hosted, organization]
+    if: >-
+      github.event.review.state == 'approved' &&
+      (
+        (github.event.pull_request.base.ref == 'develop' && github.event.pull_request.head.ref != 'master-reverse-release') ||
+        (github.event.pull_request.base.ref == 'master' && github.event.pull_request.head.ref != 'develop')
+      )
+    steps:
+      - name: announce release documents
+        env:
+            # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
+            TITLE: ${{ github.event.pull_request.title }}
+            DESCRIPTION: |
+              h2. ▼開発チェックシート
+
+              h2. ▼テスト仕様書
+
+        run: |
+          body=$(cat <<EOS
+          リリースチケットを作成しましたか？\n\
+          [この Pull Request 用のリリースチケットをテンプレートから作成](https://jira.next-group.jp/secure/CreateIssueDetails!init.jspa?pid=12102&issuetype=11800&priority=3&components=16415&description=$(node -e "console.log(encodeURIComponent(process.env.DESCRIPTION))")&customfield_14103=${{ github.event.pull_request.html_url }}&summary=$( node -e "console.log(encodeURIComponent(process.env.TITLE))")) できます\n
+          EOS
+          )
+
+          curl -sSL -X POST -H "Authorization: token ${GITHUB_TOKEN}" -d "{\"body\":\"${body}\"}" ${{ github.event.pull_request.comments_url }}

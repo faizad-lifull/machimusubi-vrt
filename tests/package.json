@@ -1,0 +1,41 @@
+{
+  "name": "machimusubi-web-e2e",
+  "version": "1.0.0",
+  "description": "このディレクトリ配下では、machimusubi-web のE2Eテストのソースコードを管理する ブラウザオートメーションには `TestCafe` を利用する",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "screenshot": "node -r esbuild-register src/vrt/screenshots/screenshots.ts",
+    "prevrt": "rimraf src/vrt/screenshots/outputs",
+    "vrt": "run-s vrt:collect vrt:diff",
+    "vrt:collect": "run-p vrt:collect:actual:* vrt:collect:expected:*",
+    "vrt:collect:actual:pc": "DEVICE=pc MODE=targets npm run screenshot",
+    "vrt:collect:actual:sp": "DEVICE=sp MODE=targets npm run screenshot",
+    "vrt:collect:expected:pc": "DEVICE=pc MODE=master npm run screenshot",
+    "vrt:collect:expected:sp": "DEVICE=sp MODE=master npm run screenshot",
+    "vrt:diff": "reg-cli src/vrt/screenshots/outputs/targets/img src/vrt/screenshots/outputs/master src/vrt/screenshots/outputs/targets/diff --report src/vrt/screenshots/outputs/targets/index.html --json src/vrt/screenshots/outputs/targets/reg.json --matchingThreshold 0.3 --thresholdRate 0.05",
+    "lint": "gts lint",
+    "clean": "gts clean",
+    "compile": "tsc",
+    "fix": "gts fix"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "jest": "^27.5.1",
+    "puppeteer": "22.8.2",
+    "reg-cli": "^0.17.7",
+    "ts-jest": "^27.1.3"
+  },
+  "devDependencies": {
+    "@types/jest": "^27.4.1",
+    "@types/node": "^14.11.2",
+    "esbuild": "^0.14.54",
+    "esbuild-register": "^3.4.2",
+    "gts": "^3.1.1",
+    "npm-run-all": "^4.1.5",
+    "rimraf": "^5.0.0",
+    "typescript": "~4.7.0"
+  }
+}
