@@ -1,8 +1,7 @@
 name: Visual Regression Test
 on:
   issue_comment:
-    types: 
-      - created
+    types: [created]
 jobs:
   vrt:
     # ラベル「VisualRegression」と EE 生成完了の PR comment を参照する
@@ -10,7 +9,8 @@ jobs:
       github.event.issue.pull_request != null &&
       contains(github.event.issue.labels.*.name, 'VisualRegression') &&
       startsWith(github.event.comment.body, 'このPull Requestは')
-    runs-on: [self-hosted, organization]
+    # runs-on: [self-hosted, organization]
+    runs-on: ubuntu-latest
     steps:
       # PR Number の設定
       - name: Get Pull Request number
@@ -19,7 +19,7 @@ jobs:
 
       - name: Install libnss3
         run: |
-          apt update && apt-get install -y \
+          sudo apt update && apt-get install -y \
           libnss3 \
           libatk1.0-0 \
           libatk-bridge2.0-0 \
