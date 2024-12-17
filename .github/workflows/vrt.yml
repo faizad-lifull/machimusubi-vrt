@@ -64,20 +64,19 @@ jobs:
       
       - name: Install dependencies
         run: |
-          cd tests \
           npm install
 
       # 現在のスナップショットを収集
       - name: Collect snapshots
         run: |
-          cd tests \
+          cd tests
           STAGE=pr:${{ steps.get_pr.outputs.pr_number }} npm run vrt:collect
 
       # テスト実行して html を出力
       - name: Visual Regression Test
         id: vrt
         run: |
-          cd tests \
+          cd tests
           npm run vrt:diff
         continue-on-error: true
 
