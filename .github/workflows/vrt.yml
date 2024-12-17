@@ -73,7 +73,7 @@ jobs:
       - name: Collect snapshots
         run: |
           cd tests
-          STAGE=pr:${{ steps.get_pr.outputs.pr_number }} npm run vrt:collect
+          STAGE=test npm run vrt:collect
 
       # テスト実行して html を出力
       - name: Visual Regression Test
