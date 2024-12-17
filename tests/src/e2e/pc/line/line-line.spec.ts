@@ -1,7 +1,6 @@
 import * as puppeteer from 'puppeteer';
-import { homesOrigin, jestTimeout } from '../../../utils/constants';
+import { isHeadless, homesOrigin, jestTimeout } from '../../../utils/constants';
 import * as linesData from '../../../utils/data/master-tokyo-lines';
-import { setupBrowser } from '../../../utils/setup-browser';
 
 // extend jest timeout, because puppeteer might take sometime
 jest.setTimeout(jestTimeout);
@@ -26,10 +25,10 @@ describe('/{pref}/{line}-line/ E2E', () => {
     let page: puppeteer.Page;
 
     beforeAll(async () => {
-         const { browser: newBrowser, page: newPage } = await setupBrowser();
-
-        browser = newBrowser;
-        page = newPage;
+        browser = await puppeteer.launch({
+            headless: isHeadless
+        });
+         page = await browser.newPage();
     });
 
     afterAll(async () => {

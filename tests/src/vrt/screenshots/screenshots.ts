@@ -55,7 +55,7 @@ async function screenshot(
 
   if (selectors) {
     for (const selector of selectors) {
-      const element = await page.waitForSelector(selector);
+      const element = await page.waitForSelector(selector, { timeout: 60000 });
       let destinationSelector = destination.replace(
         /\.jpeg$/,
         `-${selector}.jpeg`
@@ -96,8 +96,7 @@ async function main(): Promise<void> {
 
   const browser = await puppeteer.launch({
     headless: true,
-    timeout:0,
-    args: ['--no-sandbox']
+    timeout: 10 * 1000,
   });
 
   if (!existsSync(outputDir(mode))) {

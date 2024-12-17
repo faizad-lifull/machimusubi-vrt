@@ -1,7 +1,6 @@
 import * as puppeteer from 'puppeteer';
 import {tealiumTestConfig} from './tealium.spec.config';
 import {getHomesOrigin} from '../../../utils/homes.origin';
-import { setupBrowser } from '../../../utils/setup-browser';
 
 // Puppeteerによるブラウザ操作が時間を要するので
 // Jest のテストケース毎のタイムアウト時間を10秒に延長する
@@ -25,9 +24,7 @@ const getUtagData = async (page: puppeteer.Page): Promise<UtagData> => {
 describe('Tealium E2Eテスト', () => {
   let browser: puppeteer.Browser;
   beforeAll(async () => {
-     const { browser: newBrowser, page: newPage } = await setupBrowser();
-
-        browser = newBrowser;
+    browser = await puppeteer.launch();
   });
 
   afterAll(async () => {

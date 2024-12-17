@@ -11,7 +11,6 @@ describe("Search by lifestyle' checkbox matches the number of stations on the ci
   let numberResult: String | null;
 
   beforeAll(async () => {
-    console.log(url)
     const { browser: newBrowser, page: newPage } = await setupBrowser(url);
     browser = newBrowser;
     page = newPage;
@@ -42,8 +41,6 @@ describe("Search by lifestyle' checkbox matches the number of stations on the ci
   });
 
   it("should press search button and compare the number of cassette and banner number at previous page", async () => {
-    
-    await new Promise<void>((resolve) => setTimeout(resolve, 5000));
     
     await page.waitForSelector(lifeStyle.searchButton);
     await page.click(lifeStyle.searchButton);

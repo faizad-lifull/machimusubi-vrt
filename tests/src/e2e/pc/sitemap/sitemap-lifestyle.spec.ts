@@ -1,6 +1,5 @@
 import * as puppeteer from 'puppeteer';
-import { homesOrigin, jestTimeout } from '../../../utils/constants';
-import { setupBrowser } from '../../../utils/setup-browser';
+import { isHeadless, homesOrigin, jestTimeout } from '../../../utils/constants';
 
 // extend jest timeout, because puppeteer might take sometime
 jest.setTimeout(jestTimeout);
@@ -13,10 +12,12 @@ describe('/sitemap-station.xml E2E', () => {
     let response: puppeteer.HTTPResponse | null;
 
     beforeAll(async () => {
-        const { browser: newBrowser, page: newPage } = await setupBrowser();
+        browser = await puppeteer.launch({
+            headless: isHeadless
+            // headless: false
+        });
 
-        browser = newBrowser;
-        page = newPage;
+        page = await browser.newPage();
         response = await page.goto(validUrl);
         await page.waitForSelector("urlset");
     });

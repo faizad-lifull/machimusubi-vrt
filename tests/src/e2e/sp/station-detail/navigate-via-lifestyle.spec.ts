@@ -38,7 +38,7 @@ describe("Navigate to Station detail via Lifestyle in the top page", () => {
     // Select second item from personal list
     await page.click(lifeStyle.personalListSecondItem);
     await new Promise<void>((resolve) => setTimeout(resolve, 5000));
-    await page.waitForSelector(lifeStyle.searchButton);
+    await page.waitForSelector(lifeStyle.searchButton, { timeout: 10000 });
 
     // Perform search
     await page.click(lifeStyle.searchButton);
