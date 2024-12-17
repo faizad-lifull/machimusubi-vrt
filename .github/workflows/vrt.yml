@@ -64,6 +64,7 @@ jobs:
       
       - name: Install dependencies
         run: |
+          cd tests
           npm install
 
       # 現在のスナップショットを収集
