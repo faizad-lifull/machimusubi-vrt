@@ -2,6 +2,7 @@ import * as http from 'http';
 import * as https from 'https';
 import { join } from 'path';
 import { getHomesOrigin } from '../../../utils/homes.origin';
+import { jestTimeout } from '../../../utils/constants';
 
 const stage =  process.env.STAGE ?? 'test';
 const path = '/machimusubi/ajax/detail/area-reviews/';
@@ -19,6 +20,10 @@ const options = {
     'Content-Type': 'application/json',
   },
 };
+
+
+// extend jest timeout, because puppeteer might take sometime
+jest.setTimeout(jestTimeout);
 
 const makeHttpRequest = (
   url: string,
