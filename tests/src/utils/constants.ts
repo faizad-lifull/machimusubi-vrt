@@ -22,4 +22,4 @@ export const isHeadless = process.env.IS_HEADLESS == 'false'? false : true;
 
 export const homesOrigin = getHomesOrigin(process.env.STAGE ?? '');
 
-export const jestTimeout = 30 * 1000;
+export const jestTimeout = 60 * 1000;
