@@ -1,5 +1,5 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
-
+jest.setTimeout(10000);
 describe('Google Search Tests', () => {
   let browser: Browser;
   let page: Page;
