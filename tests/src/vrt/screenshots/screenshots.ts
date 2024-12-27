@@ -97,6 +97,7 @@ async function main(): Promise<void> {
   const browser = await puppeteer.launch({
     headless: true,
     timeout: 10 * 1000,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
 
   if (!existsSync(outputDir(mode))) {
