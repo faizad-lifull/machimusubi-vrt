@@ -73,7 +73,7 @@ jobs:
       - name: Collect snapshots
         run: |
           cd tests
-          STAGE=test npm run vrt:collect
+          STAGE=live npm run vrt:collect
 
       # テスト実行して html を出力
       - name: Visual Regression Test
