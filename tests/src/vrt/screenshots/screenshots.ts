@@ -57,7 +57,7 @@ async function screenshot(
 
   if (selectors) {
     for (const selector of selectors) {
-      const element = await page.waitForSelector(selector, { timeout: 60000 });
+      const element = await page.waitForSelector(selector);
       let destinationSelector = destination.replace(
         /\.jpeg$/,
         `-${selector}.jpeg`
