@@ -43,6 +43,7 @@ async function screenshot(
   await page.setViewport(viewport[deviceType]);
   await page.goto(url, {
     waitUntil: "networkidle0",
+    timeout: 0
   });
   if (maskingSelectors) {
     await page.evaluate((maskingSelectors) => {
