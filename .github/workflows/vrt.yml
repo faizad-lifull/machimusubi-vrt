@@ -4,31 +4,21 @@ on:
     types: [created]
 jobs:
   vrt:
+    # Check for VisualRegression label and PR comment
     if: |
       github.event.issue.pull_request != null &&
       contains(github.event.issue.labels.*.name, 'VisualRegression') &&
       startsWith(github.event.comment.body, 'このPull Requestは')
     runs-on: ubuntu-latest
     env:
-      STAGE: live
-      PUPPETEER_TIMEOUT: 60000  # Increase timeout to 60 seconds
-      # Add additional Puppeteer configurations
-      PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: true
-      PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome-stable
-
+      STAGE: live  # Added STAGE environment variable at job level
     steps:
+      # PR Number setup
       - name: Get Pull Request number
         id: get_pr
         run: echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
 
-      # Install Chrome
-      - name: Install Chrome
-        run: |
-          wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/sources.list.d/google.list'
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
-
+      # Set up Node.js
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
@@ -41,22 +31,13 @@ jobs:
           cd tests
           npm install
 
-      # Add debugging information
-      - name: Debug Puppeteer
-        run: |
-          cd tests
-          google-chrome --version
-          which google-chrome
-          echo "Node version: $(node -v)"
-          echo "NPM version: $(npm -v)"
-
+      # Collect snapshots
       - name: Collect snapshots
         run: |
           cd tests
           NODE_OPTIONS="--max-old-space-size=4096" npm run vrt:collect
-        env:
-          DEBUG: puppeteer:*  # Enable Puppeteer debugging
 
+      # Run tests and output HTML
       - name: Visual Regression Test
         id: vrt
         run: |
@@ -64,6 +45,7 @@ jobs:
           npm run vrt:diff
         continue-on-error: true
 
+      # Upload artifacts (retained for 3 days)
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -71,12 +53,14 @@ jobs:
           path: ./tests/src/vrt
           retention-days: 3
 
+      # Download artifact for GitHub Pages deployment
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           name: pr-${{ steps.get_pr.outputs.pr_number }}
           path: ./tests/src/vrt
 
+      # Deploy to GitHub Pages
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
@@ -85,11 +69,13 @@ jobs:
           publish_branch: gh-pages
           destination_dir: pr-${{ steps.get_pr.outputs.pr_number }}
 
+      # Clean up screenshots if VRT succeeds
       - name: Clean up screenshots on success
         if: steps.vrt.outcome == 'success'
         run: |
           rm -rf src/vrt/screenshots/outputs/*
 
+      # Post comment on PR
       - name: Post comment
         uses: actions/github-script@v6
         with:
