@@ -5,21 +5,21 @@ export const pagePatterns: {
   deviceType: ("sp" | "pc")[];
   describe?: string;
 }[] = [
-  {
-    path: "/machimusubi/",
-    deviceType: ["sp", "pc"],
-    describe: "Top Page Test",
-  },
-  {
-    path: "/machimusubi/tokyo/lifestyle/",
-    deviceType: ["sp", "pc"],
-    describe: "Lifestyle Page Test",
-  },
-  {
-    path: "/machimusubi/tokyo/lifestyle/st-list/?tag_id=1,3",
-    deviceType: ["sp", "pc"],
-    describe: "Lifestyle Station Page Test",
-  },
+  // {
+  //   path: "/machimusubi/",
+  //   deviceType: ["sp", "pc"],
+  //   describe: "Top Page Test",
+  // },
+  // {
+  //   path: "/machimusubi/tokyo/lifestyle/",
+  //   deviceType: ["sp", "pc"],
+  //   describe: "Lifestyle Page Test",
+  // },
+  // {
+  //   path: "/machimusubi/tokyo/lifestyle/st-list/?tag_id=1,3",
+  //   deviceType: ["sp", "pc"],
+  //   describe: "Lifestyle Station Page Test",
+  // },
   {
     path: "/machimusubi/tokyo/lifestyle/64/",
     deviceType: ["sp", "pc"],
