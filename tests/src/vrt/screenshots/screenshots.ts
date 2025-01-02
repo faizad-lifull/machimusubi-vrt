@@ -94,7 +94,7 @@ async function autoScroll(page: puppeteer.Page) {
 
 async function main(): Promise<void> {
   const mode = process.env.MODE === "master" ? "master" : "targets";
-  const stage = mode === "master" ? "test" : process.env.STAGE ?? "test";
+  const stage = mode === "master" ? "live" : process.env.STAGE ?? "live";
 
   const browser = await puppeteer.launch({
     headless: true,
