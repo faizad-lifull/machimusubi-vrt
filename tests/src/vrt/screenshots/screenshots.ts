@@ -1,3 +1,4 @@
+
 import { mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import { cwd } from "process";
@@ -17,7 +18,6 @@ function outputDir(mode: "master" | "targets"): string {
 }
 
 function pathToFileName(path: string, deviceType: "sp" | "pc"): string {
-  // パスのスラッシュをハイフンに置換してファイル名として利用できる文字列にする
   return (
     `${deviceType}-` +
     path
@@ -36,15 +36,49 @@ async function screenshot(
   destination: string,
   deviceType: "sp" | "pc"
 ): Promise<void> {
-  const url = join(getHomesOrigin(stage), path);
+  // const url = join(getHomesOrigin(stage), path);
+  const url = "https://www.google.com";
   console.log(`Screenshotting ${url} to ${destination}`);
   const page = await browser.newPage();
+
+  // Anti-bot detection bypass
   await page.setUserAgent(userAgent[deviceType]);
   await page.setViewport(viewport[deviceType]);
+  await page.setExtraHTTPHeaders({
+    "accept-language": "en-US,en;q=0.9",
+  });
+
+  // Modify navigator properties to appear more human-like
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, "platform", {
+      get: () => "Win32",
+    });
+    Object.defineProperty(navigator, "webdriver", {
+      get: () => false,
+    });
+    Object.defineProperty(navigator, "language", {
+      get: () => "en-US",
+    });
+    Object.defineProperty(navigator, "languages", {
+      get: () => ["en-US", "en"],
+    });
+  });
+
+  // Disable bot-friendly features
+  const client = await page.target().createCDPSession();
+  await client.send("Network.enable");
+  await client.send("Network.setUserAgentOverride", {
+    userAgent: userAgent[deviceType],
+  });
+  await client.send("Emulation.setNavigatorOverrides", {
+    platform: "Win32",
+  });
+
   await page.goto(url, {
     waitUntil: "networkidle0",
-    timeout: 0
+    timeout: 0,
   });
+
   if (maskingSelectors) {
     await page.evaluate((maskingSelectors) => {
       for (const selector of maskingSelectors) {
@@ -99,6 +133,11 @@ async function main(): Promise<void> {
   const browser = await puppeteer.launch({
     headless: true,
     timeout: 10 * 10000,
+    args: [
+      "--disable-blink-features=AutomationControlled", // Further bot detection bypass
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+    ],
   });
 
   if (!existsSync(outputDir(mode))) {

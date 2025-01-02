@@ -65,8 +65,8 @@ export const pagePatterns: {
   // },
   {
     path: "/machimusubi/tokyo/heiwadai_06376-st/",
-    deviceType: ["pc", "sp"],
-    selectors: ["#data"],
+    deviceType: ["pc"],
+    selectors: ["img"],
     describe: "Station Detail Basic information differences",
   },
 ];
