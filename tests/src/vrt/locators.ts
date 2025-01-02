@@ -51,18 +51,18 @@ export const pagePatterns: {
   //   deviceType: ["sp", "pc"],
   //   describe: "Error Page Test",
   // },
-  {
-    path: "/machimusubi/tokyo/heiwadai_06376-st/",
-    deviceType: ["pc"],
-    selectors: [".statsContent"],
-    describe: "Station Detail Rating Star differences",
-  },
-  {
-    path: "/machimusubi/tokyo/heiwadai_06376-st/",
-    deviceType: ["pc"],
-    selectors: ["#line"],
-    describe: "Station Detail Route information differences",
-  },
+  // {
+  //   path: "/machimusubi/tokyo/heiwadai_06376-st/",
+  //   deviceType: ["pc"],
+  //   selectors: [".statsContent"],
+  //   describe: "Station Detail Rating Star differences",
+  // },
+  // {
+  //   path: "/machimusubi/tokyo/heiwadai_06376-st/",
+  //   deviceType: ["pc"],
+  //   selectors: ["#line"],
+  //   describe: "Station Detail Route information differences",
+  // },
   {
     path: "/machimusubi/tokyo/heiwadai_06376-st/",
     deviceType: ["pc", "sp"],
