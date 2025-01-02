@@ -1,4 +1,10 @@
 name: Visual Regression Test
+# Add permissions block at the top level
+permissions:
+  contents: write      # Needed for pushing to gh-pages
+  pull-requests: write # Needed for commenting on PRs
+  issues: write        # Needed for issue comments
+
 on:
   issue_comment:
     types: [created]
@@ -11,7 +17,7 @@ jobs:
       startsWith(github.event.comment.body, 'このPull Requestは')
     runs-on: ubuntu-latest
     steps:
-      # PR Number setup
+      # Rest of your workflow remains the same...
       - name: Get Pull Request number
         id: get_pr
         run: echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
@@ -75,7 +81,7 @@ jobs:
         run: |
           rm -rf src/vrt/screenshots/outputs/*
 
-      # Post comment on PR
+      # Post comment
       - name: Post comment
         uses: actions/github-script@v6
         with:
