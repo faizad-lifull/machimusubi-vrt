@@ -88,7 +88,7 @@ jobs:
           script: |
             const prNumber = ${{ steps.get_pr.outputs.pr_number }};
             const body = `🎨 Visual Regression Test completed.
-            Please check the following URL: https://silver-dollop-6k41loq.pages.github.io/pr-${{ steps.get_pr.outputs.pr_number }}/screenshot/targets/`;
+            Please check the following URL: https://faizad-lifull.github.io/machimusubi-vrt/pr-${{ steps.get_pr.outputs.pr_number }}/screenshot/targets/`;
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
