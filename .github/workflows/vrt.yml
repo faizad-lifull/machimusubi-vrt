@@ -10,8 +10,6 @@ jobs:
       contains(github.event.issue.labels.*.name, 'VisualRegression') &&
       startsWith(github.event.comment.body, 'このPull Requestは')
     runs-on: ubuntu-latest
-    env:
-      STAGE: live  # Added STAGE environment variable at job level
     steps:
       # PR Number setup
       - name: Get Pull Request number
@@ -36,6 +34,8 @@ jobs:
         run: |
           cd tests
           NODE_OPTIONS="--max-old-space-size=4096" npm run vrt:collect
+        env:
+          STAGE: live  # Also set at step level to ensure availability
 
       # Run tests and output HTML
       - name: Visual Regression Test
