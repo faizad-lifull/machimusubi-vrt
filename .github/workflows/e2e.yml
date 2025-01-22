@@ -1,49 +1,116 @@
 name: E2E test
-
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-
+  issue_comment:
+    types: [created]
 jobs:
   e2e:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10  # Add explicit timeout
+    if: |
+      github.event.issue.pull_request != null &&
+      startsWith(github.event.comment.body, 'このPull Requestは')
+
+    runs-on: [self-hosted, organization]
+    timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Get PR number
+        id: get_pr
+        run: echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
-        
+        with:
+          node-version: lts/*
+          cache: 'npm'
+          cache-dependency-path: 'tests/package-lock.json'
+
       - name: Install Chrome dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y chromium-browser
-          
-      - name: Cache Puppeteer binaries
-        uses: actions/cache@v3
-        id: puppeteer-cache
-        with:
-          path: |
-            tests/node_modules/puppeteer/.local-chromium
-          key: ${{ runner.os }}-puppeteer-${{ hashFiles('tests/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-puppeteer-
-
-      - name: Install Puppeteer
-        if: steps.puppeteer-cache.outputs.cache-hit != 'true'
-        run: |
-          cd tests
-          npm install puppeteer
-            
+          sudo apt-get install -y chromium-browser libasound2 libatk1.0-0 \
+            libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 \
+            libgcc1 libgconf-2-4 libgdk-pixbuf2.0-0 libglib2.0-0 libgtk-3-0 \
+            libnspr4 libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libx11-6 \
+            libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 \
+            libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 \
+            libxtst6 libgbm1
+      
       - name: Install dependencies
-        run: |
-          cd tests
-          npm ci
-        
-      - name: Run tests
+        working-directory: tests
+        run: npm ci
+
+      - name: Run parallel tests
+        working-directory: tests
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
+          STAGE: pr:${{ steps.get_pr.outputs.pr_number }}
         run: |
-          cd tests 
-          npm run test
+          npm run test:coverage
+        id: test_results
+
+      - name: Comment on PR with detailed Jest results
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const resultsPath = path.join('tests', 'jest-results.json');
+            let testSummary = '';
+            let detailedResults = '';
+
+            // Parse Jest test results
+            if (fs.existsSync(resultsPath)) {
+              const results = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
+              const { numTotalTests, numPassedTests, numFailedTests } = results;
+              const passRate = ((numPassedTests / numTotalTests) * 100).toFixed(2);
+ 
+              if (numFailedTests > 0) {
+                testSummary = `:x: Failed ( Pass rate : ${passRate}%, Passed: ${numPassedTests}, Failed: ${numFailedTests}, Total: ${numTotalTests} )`;
+              } else {
+                testSummary = `:white_check_mark: All Passed ( Pass rate : ${passRate}%, Passed: ${numPassedTests}, Failed: ${numFailedTests}, Total: ${numTotalTests} )`;
+              }
+ 
+              detailedResults = '<details>\n';
+              detailedResults += '<summary>'+testSummary+' (クリックで拡大)</b></summary>\n\n';
+              detailedResults += '| Test File | Status | Duration | Failed Tests |\n';
+              detailedResults += '|-----------|---------|----------|---------------|\n';
+
+              results.testResults.forEach(testFile => {
+                const fileName = path.basename(testFile.name);
+                const status = testFile.status === 'passed' ? ':white_check_mark:' : ':x:';
+                const duration = (testFile.endTime - testFile.startTime) / 1000;
+                 
+                const failedTests = testFile.assertionResults
+                  .filter(test => test.status === 'failed')
+                  .map(test => test.title)
+                  .join('<br>');
+
+                detailedResults += `| ${fileName} | ${status} | ${duration.toFixed(2)}s | ${failedTests || '-'} |\n`;
+              });
+              
+              detailedResults += '</details>\n';
+            } else {
+              testSummary = 'テスト結果が生成できなかった。';
+            }
+
+            const commentBody = `
+            ### E2E テストが完了しました!! ご確認ください :bow:
+
+            ${detailedResults}
+            
+            ----
+            ※ 原則 :white_check_mark: All Passed にしてからマージするようにお願いします！
+
+            `;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: commentBody,
+            });

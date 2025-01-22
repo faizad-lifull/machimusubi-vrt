@@ -1,22 +1,26 @@
-name: Visual Regression Test 
+name: Visual Regression Test
+
 on:
   issue_comment:
     types: [created]
+
 jobs:
   vrt:
-    # Check for VisualRegression label and PR comment
+    # ラベル「VisualRegression」と EE 生成完了の PR comment を参照する
     if: |
       github.event.issue.pull_request != null &&
       contains(github.event.issue.labels.*.name, 'VisualRegression') &&
       startsWith(github.event.comment.body, 'このPull Requestは')
-    runs-on: ubuntu-latest
+    
+    runs-on: [self-hosted, organization]
+    timeout-minutes: 60
+
     steps:
-      # Rest of your workflow remains the same...
+      # PR Number の設定
       - name: Get Pull Request number
         id: get_pr
-        run: echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+        run: echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
 
-      # Set up Node.js
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
@@ -24,28 +28,40 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install Chrome dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser libasound2 libatk1.0-0 \
+            libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 \
+            libgcc1 libgconf-2-4 libgdk-pixbuf2.0-0 libglib2.0-0 libgtk-3-0 \
+            libnspr4 libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libx11-6 \
+            libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 \
+            libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 \
+            libxtst6 libgbm1
+
       - name: Install dependencies
+        working-directory: tests
         run: |
-          cd tests
-          npm install
+          npm ci
 
-      # Collect snapshots
+      # 現在のスナップショットを収集
       - name: Collect snapshots
-        run: |
-          cd tests
-          NODE_OPTIONS="--max-old-space-size=4096" npm run vrt:collect
+        working-directory: tests
         env:
-          STAGE: live  # Also set at step level to ensure availability
+          NODE_OPTIONS: "--max_old_space_size=4096"
+          STAGE: pr:${{ steps.get_pr.outputs.pr_number }}
+        run: |
+          npm run vrt:collect
 
-      # Run tests and output HTML
+      # テスト実行して html を出力
       - name: Visual Regression Test
+        working-directory: tests
         id: vrt
         run: |
-          cd tests
           npm run vrt:diff
         continue-on-error: true
 
-      # Upload artifacts (retained for 3 days)
+      # 結果を Artifact にアップロードする。データは3日間保持される
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -53,36 +69,41 @@ jobs:
           path: ./tests/src/vrt
           retention-days: 3
 
-      # Download artifact for GitHub Pages deployment
+      # 保存した Artifact を GitHub Pages へデプロイする
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           name: pr-${{ steps.get_pr.outputs.pr_number }}
           path: ./tests/src/vrt
 
-      # Deploy to GitHub Pages
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./tests/src/vrt
-          publish_branch: gh-pages
-          destination_dir: pr-${{ steps.get_pr.outputs.pr_number }}
-
-      # Clean up screenshots if VRT succeeds
-      - name: Clean up screenshots on success
-        if: steps.vrt.outcome == 'success'
+      - name: Checkout Pages branch
         run: |
-          rm -rf src/vrt/screenshots/outputs/*
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages || git checkout --orphan gh-pages
+          git checkout gh-pages
 
-      # Post comment
+      - name: Copy files to gh-pages
+        run: |
+          mkdir -p pr-${{ steps.get_pr.outputs.pr_number }}
+          cp -r ./tests/src/vrt/* ./pr-${{ steps.get_pr.outputs.pr_number }}/
+          git add .
+          git commit -m "Update visual regression results for PR #${{ steps.get_pr.outputs.pr_number }}"
+          git push origin gh-pages
+
+        # クリーンアップ処理
+      - name: Clean up screenshots on success
+        if: always()
+        run: |
+          rm -rf tests/src/vrt/screenshots/outputs/*
+
+      # 結果を PR にコメント
       - name: Post comment
         uses: actions/github-script@v6
         with:
           script: |
             const prNumber = ${{ steps.get_pr.outputs.pr_number }};
-            const body = `🎨 Visual Regression Test completed.
-            Please check the following URL: https://faizad-lifull.github.io/machimusubi-vrt/pr-${{ steps.get_pr.outputs.pr_number }}/screenshots/outputs/targets/`;
+            const body = `🎨 Visual Regression Test completed.\nPlease check the following URL: https://symmetrical-spork-4kwgo2j.pages.github.io/pr-${{ steps.get_pr.outputs.pr_number }}/screenshots/outputs/targets/`;
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
