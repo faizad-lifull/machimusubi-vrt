@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "jest",
+    "test:all": "jest --json --outputFile=jest-results.json",
     "screenshot": "node -r esbuild-register src/vrt/screenshots/screenshots.ts",
     "prevrt": "rimraf src/vrt/screenshots/outputs",
     "vrt": "run-s vrt:collect vrt:diff",

@@ -12,14 +12,14 @@ jobs:
       contains(github.event.issue.labels.*.name, 'VisualRegression') &&
       startsWith(github.event.comment.body, 'このPull Requestは')
     
-    runs-on: [self-hosted, organization]
+    runs-on: ubuntu-20.04
     timeout-minutes: 60
 
     steps:
       # PR Number の設定
       - name: Get Pull Request number
         id: get_pr
-        run: echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+        run: echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
 
       - uses: actions/setup-node@v4
         with:
@@ -103,7 +103,7 @@ jobs:
         with:
           script: |
             const prNumber = ${{ steps.get_pr.outputs.pr_number }};
-            const body = `🎨 Visual Regression Test completed.\nPlease check the following URL: https://symmetrical-spork-4kwgo2j.pages.github.io/pr-${{ steps.get_pr.outputs.pr_number }}/screenshots/outputs/targets/`;
+            const body = `🎨 Visual Regression Test completed.\nPlease check the following URL: https://faizad-lifull.github.io/machimusubi-vrt/pr-${{ steps.get_pr.outputs.pr_number }}/screenshots/outputs/targets/`;
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,

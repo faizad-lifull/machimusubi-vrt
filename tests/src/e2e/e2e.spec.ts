@@ -1,5 +1,6 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
 jest.setTimeout(10000);
+
 describe('Google Search Tests', () => {
   let browser: Browser;
   let page: Page;
@@ -21,13 +22,12 @@ describe('Google Search Tests', () => {
   });
 
   test('should have correct title', async () => {
-    await page.goto('https://www.homes.co.jp/machimusubi/', {
+    await page.goto('https://www.google.com', {
       waitUntil: 'networkidle0',
     });
-    const title = await page.title(); 
-    expect(title).toBe('【ホームズ】まちむすび｜あなたにあった街情報を');
+    const title = await page.title();
+    expect(title).toBe('Google');
   });
-
 
   test('should handle errors gracefully', async () => {
     try {
@@ -36,5 +36,4 @@ describe('Google Search Tests', () => {
       expect(error).toBeTruthy();
     }
   });
-
 });

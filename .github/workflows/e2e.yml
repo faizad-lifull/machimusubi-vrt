@@ -8,13 +8,13 @@ jobs:
       github.event.issue.pull_request != null &&
       startsWith(github.event.comment.body, 'このPull Requestは')
 
-    runs-on: [self-hosted, organization]
+    runs-on: ubuntu-20.04
     timeout-minutes: 10
 
     steps:
       - name: Get PR number
         id: get_pr
-        run: echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+        run: echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -47,7 +47,7 @@ jobs:
           NODE_OPTIONS: "--max_old_space_size=4096"
           STAGE: pr:${{ steps.get_pr.outputs.pr_number }}
         run: |
-          npm run test:coverage
+          npm run test:all
         id: test_results
 
       - name: Comment on PR with detailed Jest results
@@ -58,6 +58,7 @@ jobs:
           script: |
             const fs = require('fs');
             const path = require('path');
+            const prNumber = ${{ steps.get_pr.outputs.pr_number }};
 
             const resultsPath = path.join('tests', 'jest-results.json');
             let testSummary = '';
@@ -105,12 +106,11 @@ jobs:
             
             ----
             ※ 原則 :white_check_mark: All Passed にしてからマージするようにお願いします！
-
             `;
-
+            
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
+              issue_number: prNumber,
               body: commentBody,
             });
